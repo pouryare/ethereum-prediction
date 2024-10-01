@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ethereum Price Prediction</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.js"></script>
+    <style>
+        body {
+            display: flex;
+            min-height: 100vh;
+            flex-direction: column;
+        }
+        main {
+            flex: 1 0 auto;
+        }
+        .container {
+            margin-top: 50px;
+        }
+        #loading {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 9999;
+        }
+        .loader {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        .prediction-box {
+            background-color: #f5f5f5;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .center-align {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <nav class="light-blue lighten-1" role="navigation">
+        <div class="nav-wrapper container">
+            <a id="logo-container" href="#" class="brand-logo">Ethereum Price Prediction</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="row center-align">
+            <h4>Predict Ethereum Prices</h4>
+        </div>
+        <div class="row">
+            <div class="col s12">
+                <div class="prediction-box">
+                    <div class="row">
+                        <div class="col s12">
+                            <div class="card-panel teal lighten-2">
+                                <span class="white-text">
+                                    Note: The last available date in our dataset is 16/04/2020. You can predict up to 90 days from this date.
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <form id="prediction-form">
+                        <div class="row">
+                            <div class="input-field col s12 m5">
+                                <input type="text" id="to-date" class="flatpickr" placeholder="Select Date">
+                                <label for="to-date">Select by Date</label>
+                            </div>
+                            <div class="input-field col s12 m2 center-align">
+                                <span style="line-height: 6;">OR</span>
+                            </div>
+                            <div class="input-field col s12 m5">
+                                <input type="number" id="days-after" min="1" max="90" placeholder="Enter number of days">
+                                <label for="days-after">Days after 16/04/2020</label>
+                            </div>
+                        </div>
+                        <div class="row center-align">
+                            <button class="btn waves-effect waves-light" type="submit">Predict
+                                <i class="material-icons right">send</i>
+                            </button>
+                        </div>
+                    </form>
+                    <div id="plot"></div>
+                    <div id="prediction-results" class="row">
+                        <div class="col s12">
+                            <div class="card blue-grey darken-1">
+                                <div class="card-content white-text">
+                                    <span class="card-title">Prediction Results</span>
+                                    <p id="last-price"></p>
+                                    <p id="predicted-price"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="loading">
+        <div class="loader"></div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            var lastDataDate = new Date('2020-04-16');
+            var maxDate = new Date(lastDataDate.getTime() + (90 * 24 * 60 * 60 * 1000));
+
+            flatpickr(".flatpickr", {
+                dateFormat: "d/m/Y",
+                plugins: [new confirmDatePlugin({})],
+                minDate: lastDataDate,
+                maxDate: maxDate
+            });
+
+            $('#prediction-form').on('submit', function(e) {
+                e.preventDefault();
+                var toDate;
+                
+                if ($('#to-date').val()) {
+                    toDate = $('#to-date').val();
+                } else if ($('#days-after').val()) {
+                    var daysAfter = $('#days-after').val();
+                    var predictDate = new Date(lastDataDate.getTime() + (daysAfter * 24 * 60 * 60 * 1000));
+                    toDate = predictDate.getDate().toString().padStart(2, '0') + '/' +
+                             (predictDate.getMonth() + 1).toString().padStart(2, '0') + '/' +
+                             predictDate.getFullYear();
+                } else {
+                    M.toast({html: 'Please select a date or enter number of days'});
+                    return;
+                }
+                
+                $('#loading').show();
+
+                $.ajax({
+                    url: '/predict',
+                    method: 'POST',
+                    data: {to_date: toDate},
+                    success: function(response) {
+                        $('#loading').hide();
+                        Plotly.newPlot('plot', JSON.parse(response.plot).data, JSON.parse(response.plot).layout);
+                        
+                        $('#last-price').text('Last known price: $' + response.last_price.toFixed(2));
+                        $('#predicted-price').text('Predicted price on ' + toDate + ': $' + response.predicted_price.toFixed(2));
+                    },
+                    error: function() {
+                        $('#loading').hide();
+                        M.toast({html: 'An error occurred while making the prediction.'})
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
