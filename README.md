@@ -12,7 +12,7 @@ There are two ways to use this project: training the model yourself using the pr
 
 1. Clone this repository:
    ```
-   git clone https://github.com/pourya/ethereum-price-prediction.git
+   git clone https://github.com/pourya/eethereum-predictio.git
    cd ethereum-price-prediction
    ```
 
